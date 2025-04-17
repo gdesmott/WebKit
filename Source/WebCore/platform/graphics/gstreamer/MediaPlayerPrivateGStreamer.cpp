@@ -550,9 +550,15 @@ bool MediaPlayerPrivateGStreamer::paused() const
     return !m_isPipelinePlaying;
 }
 
+static void seek_async (GstElement * pipeline, gpointer user_data) {
+    GstEvent *event = static_cast<GstEvent*>(user_data);
+    gst_element_send_event (pipeline, event);
+}
+
 bool MediaPlayerPrivateGStreamer::doSeek(const SeekTarget& target, float rate)
 {
     RefPtr player = m_player.get();
+    GstEvent *event;
 
     // Default values for rate >= 0.
     MediaTime startTime = target.time, endTime = MediaTime::invalidTime();
@@ -599,7 +605,10 @@ bool MediaPlayerPrivateGStreamer::doSeek(const SeekTarget& target, float rate)
     auto seekStart = toGstClockTime(startTime);
     auto seekStop = toGstClockTime(endTime);
     GST_DEBUG_OBJECT(pipeline(), "[Seek] Performing actual seek to %" GST_TIMEP_FORMAT " (endTime: %" GST_TIMEP_FORMAT ") at rate %f", &seekStart, &seekStop, rate);
-    return gst_element_seek(m_pipeline.get(), rate, GST_FORMAT_TIME, m_seekFlags, GST_SEEK_TYPE_SET, seekStart, GST_SEEK_TYPE_SET, seekStop);
+
+    event = gst_event_new_seek (rate, GST_FORMAT_TIME, m_seekFlags, GST_SEEK_TYPE_SET, seekStart, GST_SEEK_TYPE_SET, seekStop);
+    gst_element_call_async(m_pipeline.get(), seek_async, event, NULL);
+    return true; // FIXME
 }
 
 void MediaPlayerPrivateGStreamer::seekToTarget(const SeekTarget& inTarget)
