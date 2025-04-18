@@ -912,6 +912,10 @@ struct MessageBusData {
 };
 WEBKIT_DEFINE_ASYNC_DATA_STRUCT(MessageBusData)
 
+static void recalculate_latency_async (GstElement * pipeline, gpointer user_data) {
+    gst_bin_recalculate_latency(GST_BIN_CAST(pipeline));
+}
+
 void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMessage*)>&& customHandler)
 {
     auto bus = adoptGRef(gst_pipeline_get_bus(GST_PIPELINE(pipeline)));
@@ -955,7 +959,7 @@ void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMess
             // This can happen if the latency of live elements changes, or
             // for one reason or another a new live element is added or
             // removed from the pipeline.
-            gst_bin_recalculate_latency(GST_BIN_CAST(pipeline.get()));
+            gst_element_call_async (pipeline.get(), recalculate_latency_async, NULL, NULL);
             break;
         default:
             break;
